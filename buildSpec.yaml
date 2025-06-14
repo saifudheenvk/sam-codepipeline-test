@@ -1,0 +1,30 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: us-east-1
+    GITHUB_OWNER: saifudheenvk
+    GITHUB_REPO: sam-codepipeline-test
+    GITHUB_BRANCH: master
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - npm install -g aws-sam-cli
+  build:
+    commands:
+      - echo "Building the application..."
+      - sam build
+      - sam package --output-template-file packaged.yaml --s3-bucket saifu-codesam
+  post_build:
+    commands:
+      - echo "Deploying application..."
+      - export GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id arn:aws:secretsmanager:us-east-1:597088052511:secret:GITHUB_TOKEN-Qk0XcT --query SecretString --output text)
+      - sam deploy --stack-name test-stack --no-fail-on-empty-changeset --capabilities CAPABILITY_IAM --region $AWS_REGION --parameter-overrides GitHubOwner=$GITHUB_OWNER GitHubRepo=$GITHUB_REPO GitHubBranch=$GITHUB_BRANCH GitHubToken=$GITHUB_TOKEN
+
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: yes

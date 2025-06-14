@@ -1,0 +1,272 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 'AWS::Serverless-2016-10-31'
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Description: GitHub repository owner
+  GitHubRepo:
+    Type: String
+    Description: GitHub repository name
+  GitHubBranch:
+    Type: String
+    Description: GitHub branch to monitor
+    Default: main
+  GitHubToken:
+    Type: String
+    Description: GitHub OAuth token ARN (Secrets Manager)
+    Default: arn:aws:secretsmanager:us-east-1:597088052511:secret:GITHUB_TOKEN-Qk0XcT
+
+Globals:
+  Api:
+    OpenApiVersion: '3.0.0'
+
+Resources:
+  TestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: test-api
+      Description: "This is a test api"
+      StageName: dev
+      DefinitionUri: swagger.yaml
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+
+  TestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: test-function
+      Description: "This is a test function"
+      Handler: index.handler
+      Runtime: nodejs20.x
+      CodeUri: src/
+      Timeout: 300
+      MemorySize: 128
+      Environment:
+        Variables:
+          PRODUCT_TABLE: !Ref ProductTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProductTable
+      Events:
+        GetProducts:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: TestApi
+            Path: /products
+            Method: get
+        CreateProduct:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: TestApi
+            Path: /products
+            Method: post
+        UpdateProduct:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: TestApi
+            Path: /products
+            Method: patch
+        DeleteProduct:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: TestApi
+            Path: /products
+            Method: delete
+  ProductTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: product
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: ProductPipeline
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: my-pipeline-artifacts-bucket-saifu
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: '1'
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: !Ref GitHubToken
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                Ref: CodeBuildProject
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - 'arn:aws:s3:::my-pipeline-artifacts-bucket-saifu/*'
+                  - 'arn:aws:s3:::my-pipeline-artifacts-bucket-saifu'
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt CodeBuildProject.Arn
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:597088052511:stack/test-stack/*'
+                  - !GetAtt CodeBuildServiceRole.Arn
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: test-codebuild
+      Description: "This is a test codebuild"
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:6.0
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yaml
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+              Actions:
+                - sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Actions:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - 'arn:aws:s3:::my-pipeline-artifacts-bucket-saifu/*'
+                  - 'arn:aws:s3:::my-pipeline-artifacts-bucket-saifu'
+                  - 'arn:aws:s3:::saifu-codesam/*'
+                  - 'arn:aws:s3:::saifu-codesam'
+              - Effect: Allow
+                Actions:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt ProductTable.Arn
+              - Effect: Allow
+                Actions:
+                  - lambda:UpdateFunctionCode
+                  - lambda:InvokeFunction
+                  - lambda:CreateFunction
+                Resource:
+                  - !GetAtt TestFunction.Arn
+              - Effect: Allow
+                Actions:
+                  - secretsmanager:GetSecretValue
+                  - kms:Decrypt
+                Resource:
+                  - 'arn:aws:secretsmanager:us-east-1:597088052511:secret:GITHUB_TOKEN-Qk0XcT'
+                  - 'arn:aws:kms:us-east-1:597088052511:key/*'
+              - Effect: Allow
+                Actions:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Actions:
+                  - codebuild:*
+                  - iam:*
+                  - apigateway:*
+                  - cloudformation:*
+                  - cloudwatch:*
+                  - events:*
+                Resource: "*"
+Outputs:
+  CodeBuildServiceRoleArn:
+    Value: !GetAtt CodeBuildServiceRole.Arn
+  CodeBuildProjectArn:
+    Value: !GetAtt CodeBuildProject.Arn
+  ProductTableArn:
+    Value: !GetAtt ProductTable.Arn
+  CodePipelineRoleArn:
+    Value: !GetAtt CodePipelineRole.Arn
+  PipelineUrl:
+    Value: !Sub https://console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${CodePipeline}
+  ApiUrl:
+    Value: !Sub https://${TestApi}.execute-api.${AWS::Region}.amazonaws.com/dev/
