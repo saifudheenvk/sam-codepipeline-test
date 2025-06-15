@@ -29,11 +29,7 @@ Resources:
       Description: "This is a test api"
       StageName: dev
       DefinitionUri: swagger.yaml
-      MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"
-          LoggingLevel: INFO
-          DataTraceEnabled: true
+
 
   TestFunction:
     Type: AWS::Serverless::Function
@@ -131,7 +127,7 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
               Configuration:
-                Ref: CodeBuildProject
+                ProjectName: !Ref CodeBuildProject
 
   CodePipelineRole:
     Type: AWS::IAM::Role
@@ -189,7 +185,7 @@ Resources:
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildspec.yaml
+        BuildSpec: buildSpec.yaml
 
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
@@ -200,15 +196,15 @@ Resources:
           - Effect: Allow
             Principal:
               Service: codebuild.amazonaws.com
-              Actions:
-                - sts:AssumeRole
+            Action:
+              - sts:AssumeRole
       Policies:
         - PolicyName: CodeBuildPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Actions:
+                Action:
                   - s3:PutObject
                   - s3:GetObject
                   - s3:ListBucket
@@ -218,7 +214,7 @@ Resources:
                   - 'arn:aws:s3:::saifu-codesam/*'
                   - 'arn:aws:s3:::saifu-codesam'
               - Effect: Allow
-                Actions:
+                Action:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:UpdateItem
@@ -228,28 +224,28 @@ Resources:
                 Resource:
                   - !GetAtt ProductTable.Arn
               - Effect: Allow
-                Actions:
+                Action:
                   - lambda:UpdateFunctionCode
                   - lambda:InvokeFunction
                   - lambda:CreateFunction
                 Resource:
                   - !GetAtt TestFunction.Arn
               - Effect: Allow
-                Actions:
+                Action:
                   - secretsmanager:GetSecretValue
                   - kms:Decrypt
                 Resource:
                   - 'arn:aws:secretsmanager:us-east-1:597088052511:secret:GITHUB_TOKEN-Qk0XcT'
                   - 'arn:aws:kms:us-east-1:597088052511:key/*'
               - Effect: Allow
-                Actions:
+                Action:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                   - logs:CreateLogGroup
                 Resource:
                   - 'arn:aws:logs:*:*:*'
               - Effect: Allow
-                Actions:
+                Action:
                   - codebuild:*
                   - iam:*
                   - apigateway:*

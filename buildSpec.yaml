@@ -6,6 +6,7 @@ env:
     GITHUB_OWNER: saifudheenvk
     GITHUB_REPO: sam-codepipeline-test
     GITHUB_BRANCH: master
+    GITHUB_TOKEN_ARN: arn:aws:secretsmanager:us-east-1:597088052511:secret:GithubToken-SoLOTi
 
 phases:
   install:
@@ -21,7 +22,7 @@ phases:
   post_build:
     commands:
       - echo "Deploying application..."
-      - export GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id arn:aws:secretsmanager:us-east-1:597088052511:secret:GITHUB_TOKEN-Qk0XcT --query SecretString --output text)
+      - export GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id $GITHUB_TOKEN_ARN --query SecretString --output text --profile user1 | jq -r .GITHUB_TOKEN)
       - sam deploy --stack-name test-stack --no-fail-on-empty-changeset --capabilities CAPABILITY_IAM --region $AWS_REGION --parameter-overrides GitHubOwner=$GITHUB_OWNER GitHubRepo=$GITHUB_REPO GitHubBranch=$GITHUB_BRANCH GitHubToken=$GITHUB_TOKEN
 
 artifacts:
