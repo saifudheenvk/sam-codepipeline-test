@@ -185,7 +185,7 @@ Resources:
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildSpec.yaml
+        BuildSpec: buildspec.yaml
 
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
