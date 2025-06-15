@@ -235,7 +235,7 @@ Resources:
                   - secretsmanager:GetSecretValue
                   - kms:Decrypt
                 Resource:
-                  - 'arn:aws:secretsmanager:us-east-1:597088052511:secret:GITHUB_TOKEN-Qk0XcT'
+                  - 'arn:aws:secretsmanager:us-east-1:597088052511:secret:GithubToken-SoLOTi'
                   - 'arn:aws:kms:us-east-1:597088052511:key/*'
               - Effect: Allow
                 Action:
