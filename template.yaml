@@ -221,6 +221,7 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Query
                   - dynamodb:Scan
+                  - dynamodb:DescribeTable
                 Resource:
                   - !GetAtt ProductTable.Arn
               - Effect: Allow
@@ -252,6 +253,7 @@ Resources:
                   - cloudformation:*
                   - cloudwatch:*
                   - events:*
+                  - codepipeline:*
                 Resource: "*"
 Outputs:
   CodeBuildServiceRoleArn:
