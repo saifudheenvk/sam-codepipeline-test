@@ -27,6 +27,7 @@ phases:
     commands:
       - echo "Building the application..."
       - sam build
+      - echo "Packaging the application..."
       - sam package --output-template-file packaged.yaml --s3-bucket saifu-codesam
   post_build:
     commands:
