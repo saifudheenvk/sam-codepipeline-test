@@ -6,7 +6,7 @@ exports.handler = async (event) => {
     try {
         const body = JSON.parse(event?.body || '{}');
 
-        console.log("body", body);
+        console.log("Request body", body);
     
         switch (event.httpMethod) {
         case 'POST':
@@ -18,7 +18,7 @@ exports.handler = async (event) => {
         case 'GET':
             return listProducts();
         default:
-            throw new Error('Unknown field, unable to resolve');
+            throw new Error('Method not allowed');
         }
     } catch (error) {
         console.error("Error", error);
